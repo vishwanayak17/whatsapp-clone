@@ -7,6 +7,7 @@ const { Server } = require("socket.io")
 
 const authRoutes = require("./routes/authRoutes")
 const userRoutes = require("./routes/userRoutes")
+const groupRoutes = require("./routes/groupRoutes")
 const socketHandler = require("./socket/socketHandler")
 
 dotenv.config()
@@ -35,6 +36,7 @@ mongoose.connect(process.env.MONGO_URI)
 // Routes
 app.use("/api/auth", authRoutes)
 app.use("/api/users", userRoutes)
+app.use("/api/groups", groupRoutes)
 
 // Test Route
 app.get("/", (req, res) => {

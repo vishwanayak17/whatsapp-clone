@@ -9,7 +9,6 @@ module.exports = (io) => {
         socket.on("joinRoom", (userId) => {
             socket.join(userId)
             socket.userId = userId
-            console.log(`User ${userId} joined room`)
         })
 
         socket.on("userOnline", async (userId) => {
@@ -20,13 +19,10 @@ module.exports = (io) => {
                 lastSeen: Date.now()
             })
             io.emit("userStatusUpdate", { userId, isOnline: true })
-            console.log("Online Users:", [...onlineUsers])
         })
 
         socket.on("sendMessage", (data) => {
             const receiverSocketId = onlineUsers.get(data.receiverId)
-            console.log("Receiver Socket:", receiverSocketId)
-
             if (receiverSocketId) {
                 io.to(data.receiverId).emit("receiveMessage", {
                     ...data,
@@ -42,6 +38,16 @@ module.exports = (io) => {
             }
         })
 
+        // Group Events
+        socket.on("joinGroup", (groupId) => {
+            socket.join(groupId)
+            console.log(`User joined group: ${groupId}`)
+        })
+
+        socket.on("sendGroupMessage", (data) => {
+            io.to(data.groupId).emit("receiveGroupMessage", data)
+        })
+
         socket.on("messageSeen", (data) => {
             io.to(data.senderId).emit("messageSeen", {
                 messageId: data.messageId
@@ -54,6 +60,14 @@ module.exports = (io) => {
 
         socket.on("stopTyping", (data) => {
             socket.to(data.receiverId).emit("stopTyping", data)
+        })
+
+        socket.on("groupTyping", (data) => {
+            socket.to(data.groupId).emit("groupTyping", data)
+        })
+
+        socket.on("groupStopTyping", (data) => {
+            socket.to(data.groupId).emit("groupStopTyping", data)
         })
 
         socket.on("disconnect", async () => {

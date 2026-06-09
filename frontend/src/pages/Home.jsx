@@ -3,6 +3,7 @@ import { io } from "socket.io-client"
 import { useNavigate } from "react-router-dom"
 import Sidebar from "../Components/Sidebar"
 import ChatArea from "../Components/ChatArea"
+import GroupChatArea from "../Components/GroupChatArea"
 
 const socket = io("http://localhost:5000", {
   autoConnect: false
@@ -10,8 +11,10 @@ const socket = io("http://localhost:5000", {
 
 function Home() {
   const [selectedUser, setSelectedUser] = useState(null)
+  const [selectedGroup, setSelectedGroup] = useState(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const [notifications, setNotifications] = useState({})
+  const [groups, setGroups] = useState([])
   const currentUser = JSON.parse(localStorage.getItem("user"))
   const navigate = useNavigate()
 
@@ -114,11 +117,18 @@ function Home() {
 
   const handleSelectUser = (user) => {
     setSelectedUser(user)
+    setSelectedGroup(null)
     setShowSidebar(false)
     setNotifications(prev => ({
       ...prev,
       [user._id]: null
     }))
+  }
+
+  const handleSelectGroup = (group) => {
+    setSelectedGroup(group)
+    setSelectedUser(null)
+    setShowSidebar(false)
   }
 
   const handleSendMessage = (message) => {
@@ -167,6 +177,11 @@ function Home() {
   const handleBack = () => {
     setShowSidebar(true)
     setSelectedUser(null)
+    setSelectedGroup(null)
+  }
+
+  const handleGroupCreated = (group) => {
+    setGroups(prev => [...prev, group])
   }
 
   return (
@@ -176,13 +191,18 @@ function Home() {
         <div className={`${showSidebar ? "flex" : "hidden"} md:flex w-full md:w-[35%] flex-col border-r`}>
           <Sidebar
             onSelectUser={handleSelectUser}
+            onSelectGroup={handleSelectGroup}
             selectedUser={selectedUser}
+            selectedGroup={selectedGroup}
             currentUser={currentUser}
             onLogout={handleLogout}
             onOpenProfile={() => navigate("/profile")}
             onOpenSettings={() => navigate("/settings")}
             notifications={notifications}
             socket={socket}
+            onGroupCreated={handleGroupCreated}
+            groups={groups}
+            setGroups={setGroups}
           />
         </div>
 
@@ -194,6 +214,13 @@ function Home() {
               currentUser={currentUser}
               onSendMessage={handleSendMessage}
               onDeleteMessage={handleDeleteMessage}
+              onBack={handleBack}
+              socket={socket}
+            />
+          ) : selectedGroup ? (
+            <GroupChatArea
+              group={selectedGroup}
+              currentUser={currentUser}
               onBack={handleBack}
               socket={socket}
             />
