@@ -10,19 +10,21 @@ const socket = io("http://localhost:5000", {
 
 function Home() {
   const [selectedUser, setSelectedUser] = useState(null)
-  const [allMessages, setAllMessages] = useState(() => {
-    const saved = localStorage.getItem("allMessages")
-    return saved ? JSON.parse(saved) : {}
-  })
   const [showSidebar, setShowSidebar] = useState(true)
   const [notifications, setNotifications] = useState({})
   const currentUser = JSON.parse(localStorage.getItem("user"))
   const navigate = useNavigate()
 
-  // Messages localStorage mein save karo
-  useEffect(() => {
-    localStorage.setItem("allMessages", JSON.stringify(allMessages))
-  }, [allMessages])
+  const getMessages = () => {
+    const saved = localStorage.getItem(`messages_${currentUser?._id}`)
+    return saved ? JSON.parse(saved) : {}
+  }
+
+  const [allMessages, setAllMessages] = useState(getMessages)
+
+  const saveMessages = (msgs) => {
+    localStorage.setItem(`messages_${currentUser?._id}`, JSON.stringify(msgs))
+  }
 
   useEffect(() => {
     if (!currentUser) {
@@ -30,18 +32,22 @@ function Home() {
       return
     }
 
-    if (!socket.connected) {
-      socket.connect()
-    }
+    socket.connect()
 
-    socket.emit("joinRoom", currentUser._id)
-    socket.emit("userOnline", currentUser._id)
+    socket.on("connect", () => {
+      socket.emit("joinRoom", currentUser._id)
+      socket.emit("userOnline", currentUser._id)
+    })
 
     socket.on("receiveMessage", (data) => {
-      setAllMessages(prev => ({
-        ...prev,
-        [data.senderId]: [...(prev[data.senderId] || []), data]
-      }))
+      setAllMessages(prev => {
+        const updated = {
+          ...prev,
+          [data.senderId]: [...(prev[data.senderId] || []), data]
+        }
+        saveMessages(updated)
+        return updated
+      })
       setNotifications(prev => ({
         ...prev,
         [data.senderId]: {
@@ -61,6 +67,7 @@ function Home() {
               : msg
           )
         }
+        saveMessages(updated)
         return updated
       })
     })
@@ -75,14 +82,33 @@ function Home() {
               : msg
           )
         }
+        saveMessages(updated)
+        return updated
+      })
+    })
+
+    socket.on("messageSent", (data) => {
+      setAllMessages(prev => {
+        const updated = { ...prev }
+        for (let key in updated) {
+          updated[key] = updated[key].map(msg =>
+            msg.messageId === data.messageId
+              ? { ...msg, status: "sent" }
+              : msg
+          )
+        }
+        saveMessages(updated)
         return updated
       })
     })
 
     return () => {
+      socket.off("connect")
       socket.off("receiveMessage")
       socket.off("messageDelivered")
       socket.off("messageSeen")
+      socket.off("messageSent")
+      socket.disconnect()
     }
   }, [])
 
@@ -103,19 +129,38 @@ function Home() {
       receiverId: selectedUser._id,
       message,
       status: "sent",
-      time: new Date()
+      time: new Date(),
+      deleted: false
     }
     socket.emit("sendMessage", data)
-    setAllMessages(prev => ({
-      ...prev,
-      [selectedUser._id]: [...(prev[selectedUser._id] || []), data]
-    }))
+    setAllMessages(prev => {
+      const updated = {
+        ...prev,
+        [selectedUser._id]: [...(prev[selectedUser._id] || []), data]
+      }
+      saveMessages(updated)
+      return updated
+    })
+  }
+
+  const handleDeleteMessage = (index) => {
+    setAllMessages(prev => {
+      const updated = {
+        ...prev,
+        [selectedUser._id]: prev[selectedUser._id].map((msg, i) =>
+          i === index ? { ...msg, deleted: true, message: "" } : msg
+        )
+      }
+      saveMessages(updated)
+      return updated
+    })
   }
 
   const handleLogout = () => {
     socket.emit("userOffline", currentUser._id)
     socket.disconnect()
-    localStorage.clear()
+    localStorage.removeItem("token")
+    localStorage.removeItem("user")
     navigate("/")
   }
 
@@ -135,6 +180,7 @@ function Home() {
             currentUser={currentUser}
             onLogout={handleLogout}
             onOpenProfile={() => navigate("/profile")}
+            onOpenSettings={() => navigate("/settings")}
             notifications={notifications}
             socket={socket}
           />
@@ -147,6 +193,7 @@ function Home() {
               messages={allMessages[selectedUser?._id] || []}
               currentUser={currentUser}
               onSendMessage={handleSendMessage}
+              onDeleteMessage={handleDeleteMessage}
               onBack={handleBack}
               socket={socket}
             />

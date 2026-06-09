@@ -1,8 +1,10 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { BsCheck, BsCheckAll } from "react-icons/bs"
+import { MdDelete } from "react-icons/md"
 
-function Messages({ messages, currentUser }) {
+function Messages({ messages, currentUser, onDeleteMessage }) {
   const bottomRef = useRef(null)
+  const [selectedMsg, setSelectedMsg] = useState(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -10,12 +12,15 @@ function Messages({ messages, currentUser }) {
 
   const renderTick = (msg) => {
     if (msg.senderId !== currentUser._id) return null
-    if (msg.status === "seen") {
-      return <BsCheckAll className="text-blue-500" size={16} />
-    } else if (msg.status === "delivered") {
-      return <BsCheckAll className="text-gray-400" size={16} />
-    } else {
-      return <BsCheck className="text-gray-400" size={16} />
+    if (msg.deleted) return null
+
+    switch (msg.status) {
+      case "seen":
+        return <BsCheckAll className="text-blue-500" size={14} />
+      case "delivered":
+        return <BsCheckAll className="text-gray-400" size={14} />
+      default:
+        return <BsCheck className="text-gray-400" size={14} />
     }
   }
 
@@ -25,6 +30,7 @@ function Messages({ messages, currentUser }) {
       style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
       }}
+      onClick={() => setSelectedMsg(null)}
     >
       {messages.length === 0 && (
         <div className="flex items-center justify-center h-full">
@@ -33,18 +39,62 @@ function Messages({ messages, currentUser }) {
           </div>
         </div>
       )}
+
       {messages.map((msg, index) => (
         <div
           key={index}
           className={`flex mb-2 ${msg.senderId === currentUser._id ? "justify-end" : "justify-start"}`}
         >
-          <div className={`px-3 py-2 rounded-lg max-w-[65%] shadow-sm ${msg.senderId === currentUser._id ? "bg-[#DCF8C6] rounded-tr-none" : "bg-white rounded-tl-none"}`}>
-            <p className="text-sm text-gray-800 break-words">{msg.message}</p>
-            <div className="flex items-center justify-end gap-1 mt-1">
-              <p className="text-[10px] text-gray-400">
-                {new Date(msg.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </p>
-              {renderTick(msg)}
+          <div className="relative max-w-[65%]">
+
+            {/* Delete Button */}
+            {selectedMsg === index && msg.senderId === currentUser._id && (
+              <div className="absolute -top-8 right-0 bg-white rounded-lg shadow-lg z-10">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDeleteMessage(index)
+                    setSelectedMsg(null)
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 text-red-500 text-xs hover:bg-red-50 rounded-lg whitespace-nowrap"
+                >
+                  <MdDelete size={16} />
+                  Delete Message
+                </button>
+              </div>
+            )}
+
+            {/* Message Bubble */}
+            <div
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedMsg(selectedMsg === index ? null : index)
+              }}
+              className={`px-3 py-2 rounded-lg shadow-sm cursor-pointer ${msg.senderId === currentUser._id
+                  ? "bg-[#DCF8C6] rounded-tr-none"
+                  : "bg-white rounded-tl-none"
+                }`}
+            >
+              {msg.deleted ? (
+                <p className="text-sm text-gray-400 italic">
+                  🚫 This message was deleted
+                </p>
+              ) : (
+                <p className="text-sm text-gray-800 break-words">
+                  {msg.message}
+                </p>
+              )}
+
+              {/* Time + Tick */}
+              <div className="flex items-center justify-end gap-1 mt-1">
+                <p className="text-[10px] text-gray-400">
+                  {new Date(msg.time).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit"
+                  })}
+                </p>
+                {renderTick(msg)}
+              </div>
             </div>
           </div>
         </div>

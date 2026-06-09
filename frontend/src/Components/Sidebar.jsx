@@ -3,7 +3,7 @@ import { FiSearch } from "react-icons/fi"
 import { BsThreeDotsVertical } from "react-icons/bs"
 import api from "../api/axios"
 
-function Sidebar({ onSelectUser, selectedUser, currentUser, onLogout, onOpenProfile, notifications, socket }) {
+function Sidebar({ onSelectUser, selectedUser, currentUser, onLogout, onOpenProfile, onOpenSettings, notifications, socket }) {
   const [users, setUsers] = useState([])
   const [search, setSearch] = useState("")
   const [showMenu, setShowMenu] = useState(false)
@@ -21,10 +21,8 @@ function Sidebar({ onSelectUser, selectedUser, currentUser, onLogout, onOpenProf
     fetchUsers()
   }, [])
 
-  // Real time online/offline update
   useEffect(() => {
     if (!socket) return
-
     socket.on("userStatusUpdate", (data) => {
       setUsers(prev => prev.map(user =>
         user._id === data.userId
@@ -32,10 +30,7 @@ function Sidebar({ onSelectUser, selectedUser, currentUser, onLogout, onOpenProf
           : user
       ))
     })
-
-    return () => {
-      socket.off("userStatusUpdate")
-    }
+    return () => socket.off("userStatusUpdate")
   }, [socket])
 
   useEffect(() => {
@@ -88,11 +83,7 @@ function Sidebar({ onSelectUser, selectedUser, currentUser, onLogout, onOpenProf
                 👤 Profile
               </button>
               <button
-                className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition flex items-center gap-3"
-              >
-                ⭐ Starred Messages
-              </button>
-              <button
+                onClick={() => { onOpenSettings(); setShowMenu(false) }}
                 className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition flex items-center gap-3"
               >
                 ⚙️ Settings

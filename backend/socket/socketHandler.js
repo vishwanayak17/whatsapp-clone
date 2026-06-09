@@ -6,6 +6,12 @@ module.exports = (io) => {
     io.on("connection", (socket) => {
         console.log("User Connected:", socket.id)
 
+        socket.on("joinRoom", (userId) => {
+            socket.join(userId)
+            socket.userId = userId
+            console.log(`User ${userId} joined room`)
+        })
+
         socket.on("userOnline", async (userId) => {
             onlineUsers.set(userId, socket.id)
             socket.userId = userId
@@ -14,15 +20,12 @@ module.exports = (io) => {
                 lastSeen: Date.now()
             })
             io.emit("userStatusUpdate", { userId, isOnline: true })
-        })
-
-        socket.on("joinRoom", (userId) => {
-            socket.join(userId)
-            console.log(`User ${userId} joined room`)
+            console.log("Online Users:", [...onlineUsers])
         })
 
         socket.on("sendMessage", (data) => {
             const receiverSocketId = onlineUsers.get(data.receiverId)
+            console.log("Receiver Socket:", receiverSocketId)
 
             if (receiverSocketId) {
                 io.to(data.receiverId).emit("receiveMessage", {
@@ -33,9 +36,8 @@ module.exports = (io) => {
                     messageId: data.messageId
                 })
             } else {
-                io.to(data.senderId).emit("messageDelivered", {
-                    messageId: data.messageId,
-                    status: "sent"
+                io.to(data.senderId).emit("messageSent", {
+                    messageId: data.messageId
                 })
             }
         })
