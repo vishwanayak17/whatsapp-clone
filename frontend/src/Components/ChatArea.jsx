@@ -3,7 +3,7 @@ import ChatNavbar from "./ChatNavbar"
 import Messages from "./Messages"
 import MessageInput from "./MessageInput"
 
-function ChatArea({ selectedUser, messages, currentUser, onSendMessage, onDeleteMessage, onBack, socket }) {
+function ChatArea({ selectedUser, messages, currentUser, onSendMessage, onDeleteMessage, onBack, socket, onSendAudio }) {
   const [isTyping, setIsTyping] = useState(false)
 
   useEffect(() => {
@@ -32,11 +32,10 @@ function ChatArea({ selectedUser, messages, currentUser, onSendMessage, onDelete
 
   useEffect(() => {
     if (!selectedUser || !messages.length) return
-
     messages.forEach(msg => {
       if (
         msg.senderId === selectedUser._id &&
-        msg.status !== "seen" &&
+        msg.status === "delivered" &&
         !msg.deleted
       ) {
         socket.emit("messageSeen", {
@@ -45,7 +44,7 @@ function ChatArea({ selectedUser, messages, currentUser, onSendMessage, onDelete
         })
       }
     })
-  }, [messages, selectedUser])
+  }, [messages])
 
   const handleTypingEmit = () => {
     socket.emit("typing", {
@@ -77,6 +76,7 @@ function ChatArea({ selectedUser, messages, currentUser, onSendMessage, onDelete
         onSendMessage={onSendMessage}
         onTyping={handleTypingEmit}
         onStopTyping={handleStopTypingEmit}
+        onSendAudio={onSendAudio}
       />
     </div>
   )

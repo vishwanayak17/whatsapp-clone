@@ -2,8 +2,9 @@ import { useState, useRef } from "react"
 import { FiSend } from "react-icons/fi"
 import { BsEmojiSmile } from "react-icons/bs"
 import EmojiPicker from "emoji-picker-react"
+import AudioMessage from "./AudioMessage"
 
-function MessageInput({ onSendMessage, onTyping, onStopTyping }) {
+function MessageInput({ onSendMessage, onTyping, onStopTyping, onSendAudio }) {
   const [message, setMessage] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
   const typingTimeout = useRef(null)
@@ -51,12 +52,18 @@ function MessageInput({ onSendMessage, onTyping, onStopTyping }) {
           onChange={handleChange}
           onKeyPress={(e) => e.key === "Enter" && handleSend()}
         />
-        <button
-          onClick={handleSend}
-          className="bg-[#25D366] text-white p-2 rounded-full hover:bg-[#128C7E] transition flex-shrink-0"
-        >
-          <FiSend />
-        </button>
+
+        {/* Audio Message */}
+        <AudioMessage onSendAudio={onSendAudio} />
+
+        {message.trim() && (
+          <button
+            onClick={handleSend}
+            className="bg-[#25D366] text-white p-2 rounded-full hover:bg-[#128C7E] transition flex-shrink-0"
+          >
+            <FiSend />
+          </button>
+        )}
       </div>
     </div>
   )

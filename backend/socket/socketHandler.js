@@ -19,9 +19,19 @@ module.exports = (io) => {
                 lastSeen: Date.now()
             })
             io.emit("userStatusUpdate", { userId, isOnline: true })
+            
+            // Jab user online ho → sab ko notify karo
+            io.emit("userCameOnline", { userId })
         })
 
         socket.on("sendMessage", (data) => {
+            if (data.type === "audio" && data.audio) {
+                if (data.audio.length > 10000000) {
+                    socket.emit("messageSent", { messageId: data.messageId })
+                    return
+                }
+            }
+
             const receiverSocketId = onlineUsers.get(data.receiverId)
             if (receiverSocketId) {
                 io.to(data.receiverId).emit("receiveMessage", {
@@ -38,7 +48,6 @@ module.exports = (io) => {
             }
         })
 
-        // Group Events
         socket.on("joinGroup", (groupId) => {
             socket.join(groupId)
             console.log(`User joined group: ${groupId}`)

@@ -14,6 +14,7 @@ function Home() {
   const [selectedGroup, setSelectedGroup] = useState(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const [notifications, setNotifications] = useState({})
+  const [groupNotifications, setGroupNotifications] = useState({})
   const [groups, setGroups] = useState([])
   const currentUser = JSON.parse(localStorage.getItem("user"))
   const navigate = useNavigate()
@@ -26,7 +27,16 @@ function Home() {
   const [allMessages, setAllMessages] = useState(getMessages)
 
   const saveMessages = (msgs) => {
-    localStorage.setItem(`messages_${currentUser?._id}`, JSON.stringify(msgs))
+    const msgsToSave = {}
+    for (let key in msgs) {
+      msgsToSave[key] = msgs[key].map(msg => {
+        if (msg.type === "audio") {
+          return { ...msg, audio: null }
+        }
+        return msg
+      })
+    }
+    localStorage.setItem(`messages_${currentUser?._id}`, JSON.stringify(msgsToSave))
   }
 
   useEffect(() => {
@@ -55,9 +65,23 @@ function Home() {
         ...prev,
         [data.senderId]: {
           count: (prev[data.senderId]?.count || 0) + 1,
-          lastMessage: data.message
+          lastMessage: data.type === "audio"
+            ? "🎤 Audio message"
+            : data.message
         }
       }))
+    })
+
+    socket.on("receiveGroupMessage", (data) => {
+      if (data.senderId !== currentUser._id) {
+        setGroupNotifications(prev => ({
+          ...prev,
+          [data.groupId]: {
+            count: (prev[data.groupId]?.count || 0) + 1,
+            lastMessage: `${data.senderName}: ${data.message}`
+          }
+        }))
+      }
     })
 
     socket.on("messageDelivered", (data) => {
@@ -105,12 +129,30 @@ function Home() {
       })
     })
 
+    socket.on("userCameOnline", (data) => {
+      setAllMessages(prev => {
+        const updated = { ...prev }
+        const userMessages = updated[data.userId] || []
+        if (userMessages.length > 0) {
+          updated[data.userId] = userMessages.map(msg =>
+            msg.status === "sent" && msg.senderId === currentUser._id
+              ? { ...msg, status: "delivered" }
+              : msg
+          )
+          saveMessages(updated)
+        }
+        return updated
+      })
+    })
+
     return () => {
       socket.off("connect")
       socket.off("receiveMessage")
+      socket.off("receiveGroupMessage")
       socket.off("messageDelivered")
       socket.off("messageSeen")
       socket.off("messageSent")
+      socket.off("userCameOnline")
       socket.disconnect()
     }
   }, [])
@@ -129,6 +171,10 @@ function Home() {
     setSelectedGroup(group)
     setSelectedUser(null)
     setShowSidebar(false)
+    setGroupNotifications(prev => ({
+      ...prev,
+      [group._id]: null
+    }))
   }
 
   const handleSendMessage = (message) => {
@@ -138,6 +184,30 @@ function Home() {
       senderId: currentUser._id,
       receiverId: selectedUser._id,
       message,
+      status: "sent",
+      time: new Date(),
+      deleted: false
+    }
+    socket.emit("sendMessage", data)
+    setAllMessages(prev => {
+      const updated = {
+        ...prev,
+        [selectedUser._id]: [...(prev[selectedUser._id] || []), data]
+      }
+      saveMessages(updated)
+      return updated
+    })
+  }
+
+  const handleSendAudio = (audioData) => {
+    if (!selectedUser) return
+    const data = {
+      messageId: Date.now().toString(),
+      senderId: currentUser._id,
+      receiverId: selectedUser._id,
+      type: "audio",
+      audio: audioData,
+      message: "🎤 Audio message",
       status: "sent",
       time: new Date(),
       deleted: false
@@ -199,6 +269,7 @@ function Home() {
             onOpenProfile={() => navigate("/profile")}
             onOpenSettings={() => navigate("/settings")}
             notifications={notifications}
+            groupNotifications={groupNotifications}
             socket={socket}
             onGroupCreated={handleGroupCreated}
             groups={groups}
@@ -213,6 +284,7 @@ function Home() {
               messages={allMessages[selectedUser?._id] || []}
               currentUser={currentUser}
               onSendMessage={handleSendMessage}
+              onSendAudio={handleSendAudio}
               onDeleteMessage={handleDeleteMessage}
               onBack={handleBack}
               socket={socket}

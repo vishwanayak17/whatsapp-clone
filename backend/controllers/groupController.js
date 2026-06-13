@@ -63,6 +63,73 @@ const getGroupById = async (req, res) => {
     }
 }
 
+// Update Group (name, description)
+const updateGroup = async (req, res) => {
+    try {
+        const { name, description } = req.body
+
+        const group = await Group.findById(req.params.id)
+
+        if (!group) {
+            return res.status(404).json({ message: "Group not found" })
+        }
+
+        if (group.admin.toString() !== req.user.id) {
+            return res.status(403).json({ message: "Only admin can update group" })
+        }
+
+        const updatedGroup = await Group.findByIdAndUpdate(
+            req.params.id,
+            { name, description },
+            { new: true }
+        )
+            .populate("members", "-password")
+            .populate("admin", "-password")
+
+        res.status(200).json({
+            message: "Group Updated!",
+            group: updatedGroup
+        })
+
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({ message: "Server Error" })
+    }
+}
+
+// Make Admin
+const makeAdmin = async (req, res) => {
+    try {
+        const { userId } = req.body
+
+        const group = await Group.findById(req.params.id)
+
+        if (!group) {
+            return res.status(404).json({ message: "Group not found" })
+        }
+
+        if (group.admin.toString() !== req.user.id) {
+            return res.status(403).json({ message: "Only admin can make others admin" })
+        }
+
+        group.admin = userId
+        await group.save()
+
+        const updatedGroup = await Group.findById(req.params.id)
+            .populate("members", "-password")
+            .populate("admin", "-password")
+
+        res.status(200).json({
+            message: "Admin transferred!",
+            group: updatedGroup
+        })
+
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({ message: "Server Error" })
+    }
+}
+
 // Add Member
 const addMember = async (req, res) => {
     try {
@@ -153,6 +220,8 @@ module.exports = {
     createGroup,
     getGroups,
     getGroupById,
+    updateGroup,
+    makeAdmin,
     addMember,
     removeMember,
     deleteGroup

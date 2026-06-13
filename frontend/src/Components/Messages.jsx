@@ -1,6 +1,86 @@
 import { useEffect, useRef, useState } from "react"
-import { BsCheck, BsCheckAll } from "react-icons/bs"
+import { BsCheck, BsCheckAll, BsPlayFill, BsPauseFill } from "react-icons/bs"
 import { MdDelete } from "react-icons/md"
+
+function AudioPlayer({ src }) {
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
+  const audioRef = useRef(null)
+
+  useEffect(() => {
+    if (!src) return
+
+    const audio = new Audio()
+    audio.preload = "auto"
+    audio.src = src
+    audioRef.current = audio
+
+    audio.addEventListener("loadedmetadata", () => {
+      setDuration(audio.duration)
+    })
+
+    audio.addEventListener("timeupdate", () => {
+      setCurrentTime(audio.currentTime)
+    })
+
+    audio.addEventListener("ended", () => {
+      setIsPlaying(false)
+      setCurrentTime(0)
+    })
+
+    audio.load()
+
+    return () => {
+      audio.pause()
+      audio.src = ""
+    }
+  }, [src])
+
+  const togglePlay = () => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (isPlaying) {
+      audio.pause()
+      setIsPlaying(false)
+    } else {
+      audio.play()
+        .then(() => setIsPlaying(true))
+        .catch(err => console.log("Play error:", err))
+    }
+  }
+
+  const formatTime = (secs) => {
+    if (!secs || isNaN(secs) || !isFinite(secs)) return "0:00"
+    const mins = Math.floor(secs / 60)
+    const s = Math.floor(secs % 60)
+    return `${mins}:${s.toString().padStart(2, "0")}`
+  }
+
+  const progress = duration ? (currentTime / duration) * 100 : 0
+
+  if (!src) return null
+
+  return (
+    <div className="flex items-center gap-2 min-w-[180px]">
+      <button
+        onClick={togglePlay}
+        className="w-8 h-8 bg-[#25D366] rounded-full flex items-center justify-center text-white flex-shrink-0"
+      >
+        {isPlaying ? <BsPauseFill size={16} /> : <BsPlayFill size={16} />}
+      </button>
+      <div className="flex-1 h-1 bg-gray-300 rounded-full overflow-hidden">
+        <div
+          className="h-1 bg-[#25D366] rounded-full transition-all"
+          style={{ width: `${progress}%` }}
+        ></div>
+      </div>
+      <span className="text-[10px] text-gray-400 whitespace-nowrap">
+        {formatTime(currentTime)} / {formatTime(duration)}
+      </span>
+    </div>
+  )
+}
 
 function Messages({ messages, currentUser, onDeleteMessage }) {
   const bottomRef = useRef(null)
@@ -13,7 +93,6 @@ function Messages({ messages, currentUser, onDeleteMessage }) {
   const renderTick = (msg) => {
     if (msg.senderId !== currentUser._id) return null
     if (msg.deleted) return null
-
     switch (msg.status) {
       case "seen":
         return <BsCheckAll className="text-blue-500" size={14} />
@@ -46,8 +125,6 @@ function Messages({ messages, currentUser, onDeleteMessage }) {
           className={`flex mb-2 ${msg.senderId === currentUser._id ? "justify-end" : "justify-start"}`}
         >
           <div className="relative max-w-[65%]">
-
-            {/* Delete Button */}
             {selectedMsg === index && msg.senderId === currentUser._id && (
               <div className="absolute -top-8 right-0 bg-white rounded-lg shadow-lg z-10">
                 <button
@@ -64,28 +141,28 @@ function Messages({ messages, currentUser, onDeleteMessage }) {
               </div>
             )}
 
-            {/* Message Bubble */}
             <div
               onClick={(e) => {
                 e.stopPropagation()
                 setSelectedMsg(selectedMsg === index ? null : index)
               }}
               className={`px-3 py-2 rounded-lg shadow-sm cursor-pointer ${msg.senderId === currentUser._id
-                  ? "bg-[#DCF8C6] rounded-tr-none"
-                  : "bg-white rounded-tl-none"
+                ? "bg-[#DCF8C6] rounded-tr-none"
+                : "bg-white rounded-tl-none"
                 }`}
             >
               {msg.deleted ? (
                 <p className="text-sm text-gray-400 italic">
                   🚫 This message was deleted
                 </p>
+              ) : msg.type === "audio" ? (
+                <AudioPlayer src={msg.audio} />
               ) : (
                 <p className="text-sm text-gray-800 break-words">
                   {msg.message}
                 </p>
               )}
 
-              {/* Time + Tick */}
               <div className="flex items-center justify-end gap-1 mt-1">
                 <p className="text-[10px] text-gray-400">
                   {new Date(msg.time).toLocaleTimeString([], {

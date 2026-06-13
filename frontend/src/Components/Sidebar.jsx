@@ -5,7 +5,7 @@ import { MdGroupAdd } from "react-icons/md"
 import api from "../api/axios"
 import CreateGroup from "./CreateGroup"
 
-function Sidebar({ onSelectUser, onSelectGroup, selectedUser, selectedGroup, currentUser, onLogout, onOpenProfile, onOpenSettings, notifications, socket, onGroupCreated, groups, setGroups }) {
+function Sidebar({ onSelectUser, onSelectGroup, selectedUser, selectedGroup, currentUser, onLogout, onOpenProfile, onOpenSettings, notifications, groupNotifications, socket, onGroupCreated, groups, setGroups }) {
   const [users, setUsers] = useState([])
   const [search, setSearch] = useState("")
   const [showMenu, setShowMenu] = useState(false)
@@ -74,6 +74,17 @@ function Sidebar({ onSelectUser, onSelectGroup, selectedUser, selectedGroup, cur
     return `Last seen ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
   }
 
+  const getNotificationText = (user) => {
+    if (notifications?.[user._id]?.lastMessage) {
+      return notifications[user._id].lastMessage
+    }
+    return getLastSeen(user)
+  }
+
+  // Total group notifications count
+  const totalGroupNotifications = Object.values(groupNotifications || {})
+    .reduce((sum, n) => sum + (n?.count || 0), 0)
+
   return (
     <div className="flex flex-col h-full">
 
@@ -134,15 +145,20 @@ function Sidebar({ onSelectUser, onSelectGroup, selectedUser, selectedGroup, cur
       <div className="flex border-b">
         <button
           onClick={() => setActiveTab("chats")}
-          className={`flex-1 py-3 text-sm font-semibold transition ${activeTab === "chats" ? "text-[#25D366] border-b-2 border-[#25D366]" : "text-gray-400"}`}
+          className={`flex-1 py-3 text-sm font-semibold transition relative ${activeTab === "chats" ? "text-[#25D366] border-b-2 border-[#25D366]" : "text-gray-400"}`}
         >
           Chats
         </button>
         <button
           onClick={() => setActiveTab("groups")}
-          className={`flex-1 py-3 text-sm font-semibold transition ${activeTab === "groups" ? "text-[#25D366] border-b-2 border-[#25D366]" : "text-gray-400"}`}
+          className={`flex-1 py-3 text-sm font-semibold transition relative ${activeTab === "groups" ? "text-[#25D366] border-b-2 border-[#25D366]" : "text-gray-400"}`}
         >
           Groups
+          {totalGroupNotifications > 0 && (
+            <span className="absolute top-2 right-8 bg-[#25D366] text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+              {totalGroupNotifications}
+            </span>
+          )}
         </button>
       </div>
 
@@ -193,7 +209,7 @@ function Sidebar({ onSelectUser, onSelectGroup, selectedUser, selectedGroup, cur
                     )}
                   </div>
                   <p className="text-xs truncate text-gray-400">
-                    {notifications?.[user._id]?.lastMessage || getLastSeen(user)}
+                    {getNotificationText(user)}
                   </p>
                 </div>
               </div>
@@ -225,9 +241,16 @@ function Sidebar({ onSelectUser, onSelectGroup, selectedUser, selectedGroup, cur
                   {group.name.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h1 className="text-sm font-semibold text-gray-800 truncate">{group.name}</h1>
+                  <div className="flex justify-between items-center">
+                    <h1 className="text-sm font-semibold text-gray-800 truncate">{group.name}</h1>
+                    {groupNotifications?.[group._id]?.count > 0 && (
+                      <span className="bg-[#25D366] text-white text-xs rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0 ml-1">
+                        {groupNotifications[group._id].count}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-400 truncate">
-                    {group.members.length} members
+                    {groupNotifications?.[group._id]?.lastMessage || `${group.members.length} members`}
                   </p>
                 </div>
               </div>
@@ -244,6 +267,7 @@ function Sidebar({ onSelectUser, onSelectGroup, selectedUser, selectedGroup, cur
           onGroupCreated={(group) => {
             onGroupCreated(group)
             setGroups(prev => [...prev, group])
+            setShowCreateGroup(false)
           }}
         />
       )}
