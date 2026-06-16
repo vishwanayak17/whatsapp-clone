@@ -1,12 +1,16 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { io } from "socket.io-client"
 import { useNavigate } from "react-router-dom"
 import Sidebar from "../Components/Sidebar"
 import ChatArea from "../Components/ChatArea"
 import GroupChatArea from "../Components/GroupChatArea"
+import VideoCall from "../Components/VideoCall"
+import IncomingCall from "../Components/IncomingCall"
 
 const socket = io("http://localhost:5000", {
-  autoConnect: false
+  autoConnect: false,
+  reconnection: true,
+  reconnectionAttempts: 5,
 })
 
 function Home() {
@@ -16,6 +20,20 @@ function Home() {
   const [notifications, setNotifications] = useState({})
   const [groupNotifications, setGroupNotifications] = useState({})
   const [groups, setGroups] = useState([])
+
+  // Call states
+  const [stream, setStream] = useState(null)
+  const [call, setCall] = useState({})
+  const [callAccepted, setCallAccepted] = useState(false)
+  const [callEnded, setCallEnded] = useState(false)
+  const [inCall, setInCall] = useState(false)
+  const [currentCallType, setCurrentCallType] = useState("video")
+
+  const myVideo = useRef()
+  const userVideo = useRef()
+  const connectionRef = useRef()
+  const callStartTime = useRef(null)
+
   const currentUser = JSON.parse(localStorage.getItem("user"))
   const navigate = useNavigate()
 
@@ -65,9 +83,7 @@ function Home() {
         ...prev,
         [data.senderId]: {
           count: (prev[data.senderId]?.count || 0) + 1,
-          lastMessage: data.type === "audio"
-            ? "🎤 Audio message"
-            : data.message
+          lastMessage: data.type === "audio" ? "🎤 Audio message" : data.message
         }
       }))
     })
@@ -145,6 +161,60 @@ function Home() {
       })
     })
 
+    // Call message in chat
+    socket.on("callMessage", (data) => {
+      setAllMessages(prev => {
+        const otherUserId = data.senderId === currentUser._id
+          ? data.receiverId
+          : data.senderId
+        const updated = {
+          ...prev,
+          [otherUserId]: [...(prev[otherUserId] || []), data]
+        }
+        saveMessages(updated)
+        return updated
+      })
+    })
+
+    // Call events
+    socket.on("callUser", (data) => {
+      setCall({
+        isReceivingCall: true,
+        from: data.from,
+        name: data.name,
+        signal: data.signal,
+        callType: data.callType
+      })
+      setCurrentCallType(data.callType)
+    })
+
+    socket.on("callAccepted", (signal) => {
+      setCallAccepted(true)
+      callStartTime.current = Date.now()
+      if (connectionRef.current) {
+        connectionRef.current.signal(signal)
+      }
+    })
+
+    socket.on("callRejected", () => {
+      setCall({})
+      setInCall(false)
+      setCallEnded(true)
+      if (stream) stream.getTracks().forEach(track => track.stop())
+      if (connectionRef.current) connectionRef.current.destroy()
+      alert("Call was rejected!")
+    })
+
+    socket.on("callEnded", () => {
+      setCallAccepted(false)
+      setCallEnded(true)
+      setInCall(false)
+      setCall({})
+      callStartTime.current = null
+      if (stream) stream.getTracks().forEach(track => track.stop())
+      if (connectionRef.current) connectionRef.current.destroy()
+    })
+
     return () => {
       socket.off("connect")
       socket.off("receiveMessage")
@@ -153,28 +223,158 @@ function Home() {
       socket.off("messageSeen")
       socket.off("messageSent")
       socket.off("userCameOnline")
-      socket.disconnect()
+      socket.off("callMessage")
+      socket.off("callUser")
+      socket.off("callAccepted")
+      socket.off("callRejected")
+      socket.off("callEnded")
     }
   }, [])
+
+  const callUser = async (callType) => {
+    if (!selectedUser) return
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: callType === "video",
+        audio: true
+      })
+      setStream(mediaStream)
+      setInCall(true)
+      setCurrentCallType(callType)
+      setCallEnded(false)
+      setCallAccepted(false)
+
+      if (myVideo.current) {
+        myVideo.current.srcObject = mediaStream
+      }
+
+      const peer = new window.SimplePeer({
+        initiator: true,
+        trickle: false,
+        stream: mediaStream
+      })
+
+      peer.on("signal", (data) => {
+        socket.emit("callUser", {
+          userToCall: selectedUser._id,
+          signalData: data,
+          from: currentUser._id,
+          name: currentUser.name,
+          callType
+        })
+      })
+
+      peer.on("stream", (remoteStream) => {
+        if (userVideo.current) {
+          userVideo.current.srcObject = remoteStream
+        }
+      })
+
+      peer.on("error", (err) => {
+        console.log("Peer error:", err)
+      })
+
+      connectionRef.current = peer
+
+    } catch (err) {
+      console.log("Call error:", err)
+      alert("Camera/Mic access denied!")
+    }
+  }
+
+  const answerCall = async () => {
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: call.callType === "video",
+        audio: true
+      })
+      setStream(mediaStream)
+      setCallAccepted(true)
+      setInCall(true)
+      setCallEnded(false)
+      callStartTime.current = Date.now()
+
+      if (myVideo.current) {
+        myVideo.current.srcObject = mediaStream
+      }
+
+      const peer = new window.SimplePeer({
+        initiator: false,
+        trickle: false,
+        stream: mediaStream
+      })
+
+      peer.on("signal", (data) => {
+        socket.emit("answerCall", {
+          signal: data,
+          to: call.from
+        })
+      })
+
+      peer.on("stream", (remoteStream) => {
+        if (userVideo.current) {
+          userVideo.current.srcObject = remoteStream
+        }
+      })
+
+      peer.on("error", (err) => {
+        console.log("Peer error:", err)
+      })
+
+      peer.signal(call.signal)
+      connectionRef.current = peer
+      setCall(prev => ({ ...prev, isReceivingCall: false }))
+
+    } catch (err) {
+      console.log("Answer error:", err)
+      alert("Camera/Mic access denied!")
+    }
+  }
+
+  const rejectCall = () => {
+    socket.emit("rejectCall", {
+      to: call.from,
+      from: currentUser._id,
+      callType: call.callType
+    })
+    setCall({})
+  }
+
+  const leaveCall = () => {
+    const duration = callStartTime.current
+      ? Math.floor((Date.now() - callStartTime.current) / 1000)
+      : 0
+
+    const callTo = selectedUser?._id || call.from
+    socket.emit("endCall", {
+      to: callTo,
+      from: currentUser._id,
+      callType: currentCallType,
+      duration,
+      status: "ended"
+    })
+
+    setCallAccepted(false)
+    setCallEnded(true)
+    setInCall(false)
+    setCall({})
+    callStartTime.current = null
+    if (stream) stream.getTracks().forEach(track => track.stop())
+    if (connectionRef.current) connectionRef.current.destroy()
+  }
 
   const handleSelectUser = (user) => {
     setSelectedUser(user)
     setSelectedGroup(null)
     setShowSidebar(false)
-    setNotifications(prev => ({
-      ...prev,
-      [user._id]: null
-    }))
+    setNotifications(prev => ({ ...prev, [user._id]: null }))
   }
 
   const handleSelectGroup = (group) => {
     setSelectedGroup(group)
     setSelectedUser(null)
     setShowSidebar(false)
-    setGroupNotifications(prev => ({
-      ...prev,
-      [group._id]: null
-    }))
+    setGroupNotifications(prev => ({ ...prev, [group._id]: null }))
   }
 
   const handleSendMessage = (message) => {
@@ -288,6 +488,8 @@ function Home() {
               onDeleteMessage={handleDeleteMessage}
               onBack={handleBack}
               socket={socket}
+              onVideoCall={() => callUser("video")}
+              onVoiceCall={() => callUser("voice")}
             />
           ) : selectedGroup ? (
             <GroupChatArea
@@ -308,6 +510,27 @@ function Home() {
         </div>
 
       </div>
+
+      {/* Incoming Call */}
+      <IncomingCall
+        call={call}
+        answerCall={answerCall}
+        rejectCall={rejectCall}
+      />
+
+      {/* Video/Voice Call Screen */}
+      {inCall && (
+        <VideoCall
+          myVideo={myVideo}
+          userVideo={userVideo}
+          stream={stream}
+          callAccepted={callAccepted}
+          leaveCall={leaveCall}
+          callType={currentCallType}
+          userName={selectedUser?.name || call.name}
+        />
+      )}
+
     </div>
   )
 }

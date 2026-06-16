@@ -1,6 +1,6 @@
 import { FiPhone, FiVideo, FiArrowLeft } from "react-icons/fi"
 
-function ChatNavbar({ selectedUser, onBack, isTyping }) {
+function ChatNavbar({ selectedUser, onBack, isTyping, onVideoCall, onVoiceCall }) {
   return (
     <div className="bg-[#25D366] p-3 flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -23,8 +23,20 @@ function ChatNavbar({ selectedUser, onBack, isTyping }) {
         </div>
       </div>
       <div className="flex items-center gap-5 text-white text-xl">
-        <button className="hover:text-green-200 transition"><FiPhone /></button>
-        <button className="hover:text-green-200 transition"><FiVideo /></button>
+        <button
+          onClick={onVoiceCall}
+          className="hover:text-green-200 transition"
+          title="Voice Call"
+        >
+          <FiPhone />
+        </button>
+        <button
+          onClick={onVideoCall}
+          className="hover:text-green-200 transition"
+          title="Video Call"
+        >
+          <FiVideo />
+        </button>
       </div>
     </div>
   )

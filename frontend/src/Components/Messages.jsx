@@ -10,25 +10,17 @@ function AudioPlayer({ src }) {
 
   useEffect(() => {
     if (!src) return
-
     const audio = new Audio()
     audio.preload = "auto"
     audio.src = src
     audioRef.current = audio
 
-    audio.addEventListener("loadedmetadata", () => {
-      setDuration(audio.duration)
-    })
-
-    audio.addEventListener("timeupdate", () => {
-      setCurrentTime(audio.currentTime)
-    })
-
+    audio.addEventListener("loadedmetadata", () => setDuration(audio.duration))
+    audio.addEventListener("timeupdate", () => setCurrentTime(audio.currentTime))
     audio.addEventListener("ended", () => {
       setIsPlaying(false)
       setCurrentTime(0)
     })
-
     audio.load()
 
     return () => {
@@ -46,7 +38,7 @@ function AudioPlayer({ src }) {
     } else {
       audio.play()
         .then(() => setIsPlaying(true))
-        .catch(err => console.log("Play error:", err))
+        .catch(err => console.log("Error:", err))
     }
   }
 
@@ -82,6 +74,42 @@ function AudioPlayer({ src }) {
   )
 }
 
+function CallMessage({ msg, currentUser }) {
+  const isMine = msg.senderId === currentUser._id
+  const isMissed = msg.callStatus === "missed"
+
+  const formatDuration = (secs) => {
+    if (!secs) return ""
+    const mins = Math.floor(secs / 60)
+    const s = secs % 60
+    return ` • ${mins}:${s.toString().padStart(2, "0")} min`
+  }
+
+  return (
+    <div className={`flex mb-2 ${isMine ? "justify-end" : "justify-start"}`}>
+      <div className={`px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 ${isMine ? "bg-[#DCF8C6] rounded-tr-none" : "bg-white rounded-tl-none"}`}>
+        <div className={`text-2xl`}>
+          {isMissed ? "📵" : msg.callType === "video" ? "📹" : "📞"}
+        </div>
+        <div>
+          <p className={`text-sm font-medium ${isMissed ? "text-red-500" : "text-gray-800"}`}>
+            {isMissed
+              ? `Missed ${msg.callType === "video" ? "video" : "voice"} call`
+              : `${msg.callType === "video" ? "Video" : "Voice"} call${formatDuration(msg.callDuration)}`
+            }
+          </p>
+          <p className="text-[10px] text-gray-400">
+            {new Date(msg.time).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit"
+            })}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function Messages({ messages, currentUser, onDeleteMessage }) {
   const bottomRef = useRef(null)
   const [selectedMsg, setSelectedMsg] = useState(null)
@@ -93,6 +121,7 @@ function Messages({ messages, currentUser, onDeleteMessage }) {
   const renderTick = (msg) => {
     if (msg.senderId !== currentUser._id) return null
     if (msg.deleted) return null
+    if (msg.type === "call") return null
     switch (msg.status) {
       case "seen":
         return <BsCheckAll className="text-blue-500" size={14} />
@@ -119,63 +148,70 @@ function Messages({ messages, currentUser, onDeleteMessage }) {
         </div>
       )}
 
-      {messages.map((msg, index) => (
-        <div
-          key={index}
-          className={`flex mb-2 ${msg.senderId === currentUser._id ? "justify-end" : "justify-start"}`}
-        >
-          <div className="relative max-w-[65%]">
-            {selectedMsg === index && msg.senderId === currentUser._id && (
-              <div className="absolute -top-8 right-0 bg-white rounded-lg shadow-lg z-10">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDeleteMessage(index)
-                    setSelectedMsg(null)
-                  }}
-                  className="flex items-center gap-2 px-3 py-2 text-red-500 text-xs hover:bg-red-50 rounded-lg whitespace-nowrap"
-                >
-                  <MdDelete size={16} />
-                  Delete Message
-                </button>
-              </div>
-            )}
+      {messages.map((msg, index) => {
+        // Call message alag style mein
+        if (msg.type === "call") {
+          return <CallMessage key={index} msg={msg} currentUser={currentUser} />
+        }
 
-            <div
-              onClick={(e) => {
-                e.stopPropagation()
-                setSelectedMsg(selectedMsg === index ? null : index)
-              }}
-              className={`px-3 py-2 rounded-lg shadow-sm cursor-pointer ${msg.senderId === currentUser._id
-                ? "bg-[#DCF8C6] rounded-tr-none"
-                : "bg-white rounded-tl-none"
-                }`}
-            >
-              {msg.deleted ? (
-                <p className="text-sm text-gray-400 italic">
-                  🚫 This message was deleted
-                </p>
-              ) : msg.type === "audio" ? (
-                <AudioPlayer src={msg.audio} />
-              ) : (
-                <p className="text-sm text-gray-800 break-words">
-                  {msg.message}
-                </p>
+        return (
+          <div
+            key={index}
+            className={`flex mb-2 ${msg.senderId === currentUser._id ? "justify-end" : "justify-start"}`}
+          >
+            <div className="relative max-w-[65%]">
+              {selectedMsg === index && msg.senderId === currentUser._id && (
+                <div className="absolute -top-8 right-0 bg-white rounded-lg shadow-lg z-10">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeleteMessage(index)
+                      setSelectedMsg(null)
+                    }}
+                    className="flex items-center gap-2 px-3 py-2 text-red-500 text-xs hover:bg-red-50 rounded-lg whitespace-nowrap"
+                  >
+                    <MdDelete size={16} />
+                    Delete Message
+                  </button>
+                </div>
               )}
 
-              <div className="flex items-center justify-end gap-1 mt-1">
-                <p className="text-[10px] text-gray-400">
-                  {new Date(msg.time).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit"
-                  })}
-                </p>
-                {renderTick(msg)}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setSelectedMsg(selectedMsg === index ? null : index)
+                }}
+                className={`px-3 py-2 rounded-lg shadow-sm cursor-pointer ${msg.senderId === currentUser._id
+                  ? "bg-[#DCF8C6] rounded-tr-none"
+                  : "bg-white rounded-tl-none"
+                  }`}
+              >
+                {msg.deleted ? (
+                  <p className="text-sm text-gray-400 italic">
+                    🚫 This message was deleted
+                  </p>
+                ) : msg.type === "audio" ? (
+                  <AudioPlayer src={msg.audio} />
+                ) : (
+                  <p className="text-sm text-gray-800 break-words">
+                    {msg.message}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-end gap-1 mt-1">
+                  <p className="text-[10px] text-gray-400">
+                    {new Date(msg.time).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit"
+                    })}
+                  </p>
+                  {renderTick(msg)}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
       <div ref={bottomRef} />
     </div>
   )

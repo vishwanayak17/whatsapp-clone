@@ -19,8 +19,6 @@ module.exports = (io) => {
                 lastSeen: Date.now()
             })
             io.emit("userStatusUpdate", { userId, isOnline: true })
-            
-            // Jab user online ho → sab ko notify karo
             io.emit("userCameOnline", { userId })
         })
 
@@ -50,7 +48,6 @@ module.exports = (io) => {
 
         socket.on("joinGroup", (groupId) => {
             socket.join(groupId)
-            console.log(`User joined group: ${groupId}`)
         })
 
         socket.on("sendGroupMessage", (data) => {
@@ -77,6 +74,59 @@ module.exports = (io) => {
 
         socket.on("groupStopTyping", (data) => {
             socket.to(data.groupId).emit("groupStopTyping", data)
+        })
+
+        // Call events
+        socket.on("callUser", (data) => {
+            io.to(data.userToCall).emit("callUser", {
+                signal: data.signalData,
+                from: data.from,
+                name: data.name,
+                callType: data.callType
+            })
+        })
+
+        socket.on("answerCall", (data) => {
+            io.to(data.to).emit("callAccepted", data.signal)
+        })
+
+        socket.on("rejectCall", (data) => {
+            io.to(data.to).emit("callRejected")
+
+            const callMessage = {
+                messageId: Date.now().toString(),
+                senderId: data.from,
+                receiverId: data.to,
+                type: "call",
+                callType: data.callType || "voice",
+                callStatus: "missed",
+                message: "📵 Missed call",
+                time: new Date(),
+                deleted: false,
+                status: "delivered"
+            }
+            io.to(data.to).emit("callMessage", callMessage)
+            io.to(data.from).emit("callMessage", callMessage)
+        })
+
+        socket.on("endCall", (data) => {
+            io.to(data.to).emit("callEnded")
+
+            const callMessage = {
+                messageId: Date.now().toString(),
+                senderId: data.from,
+                receiverId: data.to,
+                type: "call",
+                callType: data.callType || "voice",
+                callDuration: data.duration || 0,
+                callStatus: "ended",
+                message: `${data.callType === "video" ? "📹" : "📞"} Call ended`,
+                time: new Date(),
+                deleted: false,
+                status: "delivered"
+            }
+            io.to(data.to).emit("callMessage", callMessage)
+            io.to(data.from).emit("callMessage", callMessage)
         })
 
         socket.on("disconnect", async () => {

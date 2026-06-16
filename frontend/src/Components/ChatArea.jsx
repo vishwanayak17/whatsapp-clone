@@ -3,7 +3,19 @@ import ChatNavbar from "./ChatNavbar"
 import Messages from "./Messages"
 import MessageInput from "./MessageInput"
 
-function ChatArea({ selectedUser, messages, currentUser, onSendMessage, onDeleteMessage, onBack, socket, onSendAudio }) {
+function ChatArea({
+  selectedUser,
+  messages,
+  currentUser,
+  onSendMessage,
+  onDeleteMessage,
+  onBack,
+  socket,
+  onSendAudio,
+  onVideoCall,
+  onVoiceCall
+}) {
+
   const [isTyping, setIsTyping] = useState(false)
 
   useEffect(() => {
@@ -28,58 +40,104 @@ function ChatArea({ selectedUser, messages, currentUser, onSendMessage, onDelete
       socket.off("typing", handleTyping)
       socket.off("stopTyping", handleStopTyping)
     }
+
   }, [selectedUser, socket])
 
+
   useEffect(() => {
+
     if (!selectedUser || !messages.length) return
+
     messages.forEach(msg => {
+
       if (
         msg.senderId === selectedUser._id &&
         msg.status === "delivered" &&
         !msg.deleted
       ) {
+
         socket.emit("messageSeen", {
           messageId: msg.messageId,
           senderId: selectedUser._id
         })
+
       }
+
     })
+
   }, [messages])
 
+
   const handleTypingEmit = () => {
+
     socket.emit("typing", {
       senderId: currentUser._id,
       receiverId: selectedUser._id
     })
+
   }
 
+
   const handleStopTypingEmit = () => {
+
     socket.emit("stopTyping", {
       senderId: currentUser._id,
       receiverId: selectedUser._id
     })
+
   }
 
+
+
   return (
+
     <div className="flex flex-col h-full">
+
+
       <ChatNavbar
+
         selectedUser={selectedUser}
+
         onBack={onBack}
+
         isTyping={isTyping}
+
+        onVideoCall={onVideoCall}
+
+        onVoiceCall={onVoiceCall}
+
       />
+
+
       <Messages
+
         messages={messages}
+
         currentUser={currentUser}
+
         onDeleteMessage={onDeleteMessage}
+
       />
+
+
       <MessageInput
+
         onSendMessage={onSendMessage}
+
         onTyping={handleTypingEmit}
+
         onStopTyping={handleStopTypingEmit}
+
         onSendAudio={onSendAudio}
+
       />
+
+
     </div>
+
   )
+
 }
+
 
 export default ChatArea
