@@ -9,6 +9,7 @@ const authRoutes = require("./routes/authRoutes")
 const userRoutes = require("./routes/userRoutes")
 const groupRoutes = require("./routes/groupRoutes")
 const socketHandler = require("./socket/socketHandler")
+const uploadRoutes = require("./routes/uploadRoutes")
 
 dotenv.config()
 
@@ -39,6 +40,8 @@ mongoose.connect(process.env.MONGO_URI)
 app.use("/api/auth", authRoutes)
 app.use("/api/users", userRoutes)
 app.use("/api/groups", groupRoutes)
+app.use("/api/upload", uploadRoutes)
+app.use("/uploads", express.static("uploads"))
 
 // Test Route
 app.get("/", (req, res) => {

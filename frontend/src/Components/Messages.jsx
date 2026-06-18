@@ -74,6 +74,17 @@ function AudioPlayer({ src }) {
   )
 }
 
+function ImageMessage({ src }) {
+  return (
+    <img
+      src={src}
+      alt="sent image"
+      className="rounded-lg max-w-[250px] max-h-[300px] object-cover cursor-pointer"
+      onClick={() => window.open(src, "_blank")}
+    />
+  )
+}
+
 function CallMessage({ msg, currentUser }) {
   const isMine = msg.senderId === currentUser._id
   const isMissed = msg.callStatus === "missed"
@@ -134,7 +145,7 @@ function Messages({ messages, currentUser, onDeleteMessage }) {
 
   return (
     <div
-      className="flex-1 overflow-y-auto p-4 bg-[#ECE5DD]"
+      className="flex-1 min-h-0 overflow-y-auto p-4 bg-[#ECE5DD]"
       style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
       }}
@@ -149,7 +160,6 @@ function Messages({ messages, currentUser, onDeleteMessage }) {
       )}
 
       {messages.map((msg, index) => {
-        // Call message alag style mein
         if (msg.type === "call") {
           return <CallMessage key={index} msg={msg} currentUser={currentUser} />
         }
@@ -192,6 +202,8 @@ function Messages({ messages, currentUser, onDeleteMessage }) {
                   </p>
                 ) : msg.type === "audio" ? (
                   <AudioPlayer src={msg.audio} />
+                ) : msg.type === "image" ? (
+                  <ImageMessage src={msg.image} />
                 ) : (
                   <p className="text-sm text-gray-800 break-words">
                     {msg.message}

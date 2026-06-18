@@ -46,6 +46,12 @@ module.exports = (io) => {
             }
         })
 
+        socket.on("deleteMessage", (data) => {
+            io.to(data.receiverId).emit("messageDeleted", {
+                messageId: data.messageId
+            })
+        })
+
         socket.on("joinGroup", (groupId) => {
             socket.join(groupId)
         })

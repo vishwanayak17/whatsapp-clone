@@ -21,7 +21,6 @@ function Home() {
   const [groupNotifications, setGroupNotifications] = useState({})
   const [groups, setGroups] = useState([])
 
-  // Call states
   const [stream, setStream] = useState(null)
   const [call, setCall] = useState({})
   const [callAccepted, setCallAccepted] = useState(false)
@@ -83,7 +82,7 @@ function Home() {
         ...prev,
         [data.senderId]: {
           count: (prev[data.senderId]?.count || 0) + 1,
-          lastMessage: data.type === "audio" ? "🎤 Audio message" : data.message
+          lastMessage: data.type === "audio" ? "🎤 Audio message" : data.type === "image" ? "📷 Photo" : data.message
         }
       }))
     })
@@ -161,7 +160,6 @@ function Home() {
       })
     })
 
-    // Call message in chat
     socket.on("callMessage", (data) => {
       setAllMessages(prev => {
         const otherUserId = data.senderId === currentUser._id
@@ -176,7 +174,21 @@ function Home() {
       })
     })
 
-    // Call events
+    socket.on("messageDeleted", (data) => {
+      setAllMessages(prev => {
+        const updated = { ...prev }
+        for (let key in updated) {
+          updated[key] = updated[key].map(msg =>
+            msg.messageId === data.messageId
+              ? { ...msg, deleted: true, message: "" }
+              : msg
+          )
+        }
+        saveMessages(updated)
+        return updated
+      })
+    })
+
     socket.on("callUser", (data) => {
       setCall({
         isReceivingCall: true,
@@ -224,6 +236,7 @@ function Home() {
       socket.off("messageSent")
       socket.off("userCameOnline")
       socket.off("callMessage")
+      socket.off("messageDeleted")
       socket.off("callUser")
       socket.off("callAccepted")
       socket.off("callRejected")
@@ -423,7 +436,38 @@ function Home() {
     })
   }
 
+  const handleSendImage = (imageUrl) => {
+    if (!selectedUser) return
+    const data = {
+      messageId: Date.now().toString(),
+      senderId: currentUser._id,
+      receiverId: selectedUser._id,
+      type: "image",
+      image: imageUrl,
+      message: "📷 Photo",
+      status: "sent",
+      time: new Date(),
+      deleted: false
+    }
+    socket.emit("sendMessage", data)
+    setAllMessages(prev => {
+      const updated = {
+        ...prev,
+        [selectedUser._id]: [...(prev[selectedUser._id] || []), data]
+      }
+      saveMessages(updated)
+      return updated
+    })
+  }
+
   const handleDeleteMessage = (index) => {
+    const msgToDelete = allMessages[selectedUser._id][index]
+
+    socket.emit("deleteMessage", {
+      messageId: msgToDelete.messageId,
+      receiverId: selectedUser._id
+    })
+
     setAllMessages(prev => {
       const updated = {
         ...prev,
@@ -458,7 +502,7 @@ function Home() {
     <div className="h-screen bg-[#ECE5DD] flex items-center justify-center">
       <div className="w-full h-full md:w-[95%] md:h-[95%] md:rounded-2xl bg-white shadow-xl flex overflow-hidden">
 
-        <div className={`${showSidebar ? "flex" : "hidden"} md:flex w-full md:w-[35%] flex-col border-r`}>
+        <div className={`${showSidebar ? "flex" : "hidden"} md:flex w-full md:w-[35%] flex-col border-r h-full overflow-hidden`}>
           <Sidebar
             onSelectUser={handleSelectUser}
             onSelectGroup={handleSelectGroup}
@@ -477,7 +521,7 @@ function Home() {
           />
         </div>
 
-        <div className={`${!showSidebar ? "flex" : "hidden"} md:flex w-full md:w-[65%] flex-col`}>
+        <div className={`${!showSidebar ? "flex" : "hidden"} md:flex w-full md:w-[65%] flex-col h-full overflow-hidden`}>
           {selectedUser ? (
             <ChatArea
               selectedUser={selectedUser}
@@ -485,6 +529,7 @@ function Home() {
               currentUser={currentUser}
               onSendMessage={handleSendMessage}
               onSendAudio={handleSendAudio}
+              onSendImage={handleSendImage}
               onDeleteMessage={handleDeleteMessage}
               onBack={handleBack}
               socket={socket}
@@ -511,14 +556,12 @@ function Home() {
 
       </div>
 
-      {/* Incoming Call */}
       <IncomingCall
         call={call}
         answerCall={answerCall}
         rejectCall={rejectCall}
       />
 
-      {/* Video/Voice Call Screen */}
       {inCall && (
         <VideoCall
           myVideo={myVideo}
