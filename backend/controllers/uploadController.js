@@ -1,42 +1,46 @@
 const multer = require("multer")
 const path = require("path")
 
-// Storage configuration
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, "uploads/")
     },
     filename: (req, file, cb) => {
-        const uniqueName = Date.now() + "-" + file.originalname
+        const uniqueName = Date.now() + "-" + Math.round(Math.random() * 1000) + "-" + file.originalname
         cb(null, uniqueName)
     }
 })
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max
     fileFilter: (req, file, cb) => {
-        const allowedTypes = /jpeg|jpg|png|gif|webp/
+        const allowedTypes = /jpeg|jpg|png|gif|webp|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|zip|mp4|mp3/
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase())
         if (extname) {
             cb(null, true)
         } else {
-            cb(new Error("Only images are allowed!"))
+            cb(new Error("File type not allowed!"))
         }
     }
 })
 
-const uploadImage = (req, res) => {
+const uploadFiles = (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ message: "No file uploaded" })
+        if (!req.files || req.files.length === 0) {
+            return res.status(400).json({ message: "No files uploaded" })
         }
 
-        const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
+        const fileData = req.files.map(file => ({
+            url: `${req.protocol}://${req.get("host")}/uploads/${file.filename}`,
+            name: file.originalname,
+            type: file.mimetype,
+            size: file.size
+        }))
 
         res.status(200).json({
-            message: "Image uploaded successfully",
-            url: fileUrl
+            message: "Files uploaded successfully",
+            files: fileData
         })
 
     } catch (error) {
@@ -45,4 +49,4 @@ const uploadImage = (req, res) => {
     }
 }
 
-module.exports = { upload, uploadImage }
+module.exports = { upload, uploadFiles }

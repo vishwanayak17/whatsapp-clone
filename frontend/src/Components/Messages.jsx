@@ -85,6 +85,40 @@ function ImageMessage({ src }) {
   )
 }
 
+function FileMessage({ fileUrl, fileName, fileSize }) {
+  const formatSize = (bytes) => {
+    if (!bytes) return ""
+    if (bytes < 1024) return bytes + " B"
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB"
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB"
+  }
+
+  const getIcon = (name) => {
+    const ext = name.split(".").pop().toLowerCase()
+    if (ext === "pdf") return "📄"
+    if (ext === "doc" || ext === "docx") return "📝"
+    if (ext === "xls" || ext === "xlsx") return "📊"
+    if (ext === "ppt" || ext === "pptx") return "📑"
+    if (ext === "zip") return "🗜️"
+    if (ext === "mp4") return "🎬"
+    if (ext === "mp3") return "🎵"
+    return "📎"
+  }
+
+  const icon = getIcon(fileName)
+  const size = formatSize(fileSize)
+
+  return (
+    <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 min-w-[200px] hover:bg-gray-50 p-1 rounded-lg transition">
+      <div className="text-3xl">{icon}</div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-gray-800 truncate font-medium">{fileName}</p>
+        <p className="text-xs text-gray-400">{size}</p>
+      </div>
+    </a>
+  )
+}
+
 function CallMessage({ msg, currentUser }) {
   const isMine = msg.senderId === currentUser._id
   const isMissed = msg.callStatus === "missed"
@@ -99,7 +133,7 @@ function CallMessage({ msg, currentUser }) {
   return (
     <div className={`flex mb-2 ${isMine ? "justify-end" : "justify-start"}`}>
       <div className={`px-4 py-2 rounded-lg shadow-sm flex items-center gap-3 ${isMine ? "bg-[#DCF8C6] rounded-tr-none" : "bg-white rounded-tl-none"}`}>
-        <div className={`text-2xl`}>
+        <div className="text-2xl">
           {isMissed ? "📵" : msg.callType === "video" ? "📹" : "📞"}
         </div>
         <div>
@@ -204,6 +238,8 @@ function Messages({ messages, currentUser, onDeleteMessage }) {
                   <AudioPlayer src={msg.audio} />
                 ) : msg.type === "image" ? (
                   <ImageMessage src={msg.image} />
+                ) : msg.type === "file" ? (
+                  <FileMessage fileUrl={msg.fileUrl} fileName={msg.fileName} fileSize={msg.fileSize} />
                 ) : (
                   <p className="text-sm text-gray-800 break-words">
                     {msg.message}

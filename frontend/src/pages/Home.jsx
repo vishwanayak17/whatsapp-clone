@@ -56,6 +56,15 @@ function Home() {
     localStorage.setItem(`messages_${currentUser?._id}`, JSON.stringify(msgsToSave))
   }
 
+  const stopMediaStream = (mediaStream) => {
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => {
+        track.stop()
+        track.enabled = false
+      })
+    }
+  }
+
   useEffect(() => {
     if (!currentUser) {
       navigate("/")
@@ -82,7 +91,7 @@ function Home() {
         ...prev,
         [data.senderId]: {
           count: (prev[data.senderId]?.count || 0) + 1,
-          lastMessage: data.type === "audio" ? "🎤 Audio message" : data.type === "image" ? "📷 Photo" : data.message
+          lastMessage: data.type === "audio" ? "🎤 Audio message" : data.type === "image" ? "📷 Photo" : data.type === "file" ? "📎 File" : data.message
         }
       }))
     })
@@ -212,8 +221,14 @@ function Home() {
       setCall({})
       setInCall(false)
       setCallEnded(true)
-      if (stream) stream.getTracks().forEach(track => track.stop())
-      if (connectionRef.current) connectionRef.current.destroy()
+      stopMediaStream(stream)
+      setStream(null)
+      if (myVideo.current) myVideo.current.srcObject = null
+      if (userVideo.current) userVideo.current.srcObject = null
+      if (connectionRef.current) {
+        connectionRef.current.destroy()
+        connectionRef.current = null
+      }
       alert("Call was rejected!")
     })
 
@@ -223,8 +238,14 @@ function Home() {
       setInCall(false)
       setCall({})
       callStartTime.current = null
-      if (stream) stream.getTracks().forEach(track => track.stop())
-      if (connectionRef.current) connectionRef.current.destroy()
+      stopMediaStream(stream)
+      setStream(null)
+      if (myVideo.current) myVideo.current.srcObject = null
+      if (userVideo.current) userVideo.current.srcObject = null
+      if (connectionRef.current) {
+        connectionRef.current.destroy()
+        connectionRef.current = null
+      }
     })
 
     return () => {
@@ -372,8 +393,17 @@ function Home() {
     setInCall(false)
     setCall({})
     callStartTime.current = null
-    if (stream) stream.getTracks().forEach(track => track.stop())
-    if (connectionRef.current) connectionRef.current.destroy()
+
+    stopMediaStream(stream)
+    setStream(null)
+
+    if (myVideo.current) myVideo.current.srcObject = null
+    if (userVideo.current) userVideo.current.srcObject = null
+
+    if (connectionRef.current) {
+      connectionRef.current.destroy()
+      connectionRef.current = null
+    }
   }
 
   const handleSelectUser = (user) => {
@@ -436,15 +466,22 @@ function Home() {
     })
   }
 
-  const handleSendImage = (imageUrl) => {
+  const handleSendImage = (fileData) => {
     if (!selectedUser) return
+
+    const isImage = fileData.type.startsWith("image/")
+
     const data = {
-      messageId: Date.now().toString(),
+      messageId: Date.now().toString() + Math.random().toString(36).slice(2),
       senderId: currentUser._id,
       receiverId: selectedUser._id,
-      type: "image",
-      image: imageUrl,
-      message: "📷 Photo",
+      type: isImage ? "image" : "file",
+      image: isImage ? fileData.url : null,
+      fileUrl: fileData.url,
+      fileName: fileData.name,
+      fileType: fileData.type,
+      fileSize: fileData.size,
+      message: isImage ? "📷 Photo" : `📎 ${fileData.name}`,
       status: "sent",
       time: new Date(),
       deleted: false
@@ -571,6 +608,7 @@ function Home() {
           leaveCall={leaveCall}
           callType={currentCallType}
           userName={selectedUser?.name || call.name}
+          connectionRef={connectionRef}
         />
       )}
 

@@ -1,5 +1,5 @@
 import { useState, useRef } from "react"
-import { FiSend, FiImage } from "react-icons/fi"
+import { FiSend, FiImage, FiPaperclip } from "react-icons/fi"
 import { BsEmojiSmile } from "react-icons/bs"
 import EmojiPicker from "emoji-picker-react"
 import AudioMessage from "./AudioMessage"
@@ -33,26 +33,35 @@ function MessageInput({ onSendMessage, onTyping, onStopTyping, onSendAudio, onSe
     setMessage(prev => prev + emojiData.emoji)
   }
 
-  const handleImageSelect = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
+  const handleFileSelect = async (e) => {
+    const files = Array.from(e.target.files)
+    if (files.length === 0) return
 
-    if (file.size > 10 * 1024 * 1024) {
-      alert("Image too large! Max 10MB allowed.")
+    // Total size check
+    const totalSize = files.reduce((sum, f) => sum + f.size, 0)
+    if (totalSize > 50 * 1024 * 1024) {
+      alert("Total file size too large! Max 50MB allowed.")
       return
     }
 
     const formData = new FormData()
-    formData.append("image", file)
+    files.forEach(file => {
+      formData.append("files", file)
+    })
 
     try {
       setUploading(true)
       const res = await api.post("/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" }
       })
-      onSendImage(res.data.url)
+
+      // Har file ko alag message bana ke bhejo
+      res.data.files.forEach(fileData => {
+        onSendImage(fileData)
+      })
+
     } catch (err) {
-      alert("Image upload failed!")
+      alert(err.response?.data?.message || "File upload failed!")
       console.log(err)
     } finally {
       setUploading(false)
@@ -75,25 +84,27 @@ function MessageInput({ onSendMessage, onTyping, onStopTyping, onSendAudio, onSe
           <BsEmojiSmile />
         </button>
 
-        {/* Image Upload */}
+        {/* Multiple File Upload */}
         <input
           type="file"
-          accept="image/*"
+          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.mp4,.mp3"
+          multiple
           ref={fileInputRef}
-          onChange={handleImageSelect}
+          onChange={handleFileSelect}
           className="hidden"
         />
         <button
           onClick={() => fileInputRef.current.click()}
           disabled={uploading}
           className="text-gray-500 hover:text-[#25D366] transition text-xl flex-shrink-0"
+          title="Attach files"
         >
-          <FiImage />
+          <FiPaperclip />
         </button>
 
         <input
           type="text"
-          placeholder={uploading ? "Uploading image..." : "Type a message"}
+          placeholder={uploading ? "Uploading files..." : "Type a message"}
           className="flex-1 bg-gray-100 px-4 py-2 rounded-full text-sm focus:outline-none"
           value={message}
           onChange={handleChange}
